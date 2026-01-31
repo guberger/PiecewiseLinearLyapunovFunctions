@@ -1,13 +1,13 @@
 import numpy as np
 import gurobipy as gp
 from gurobipy import GRB
-from src.system import PiecewiseLinearSystem, _build_path_domain
+from src.system import Path, Edge, PiecewiseLinearSystem, _build_path_domain
 
 
 def compute_lyapunov(
     sys: PiecewiseLinearSystem,
-    node_list: list[list[int]],
-    edge_list: list[int],
+    node_list: list[Path],
+    edge_list: list[Edge],
     verbose: bool = False,
 ):
     if len(node_list) == 0:
@@ -23,9 +23,9 @@ def compute_lyapunov(
         node0 = node_list[k0]
         node1 = node_list[k1]
         assert node0[1:] == node1[:-1]
-        node = node0.copy()
-        node.append(node1[-1])
-        H = _build_path_domain(sys, node)
+        path = node0.copy()
+        path.append(node1[-1])
+        H = _build_path_domain(sys, path)
         H_edge_list.append(H)
 
     model = gp.Model("compute_pwl_lyapunov")
@@ -48,8 +48,8 @@ def compute_lyapunov(
     for z in z_list:
         model.addConstr(z >= eps)
 
-    # Constraint at edge (k0, k1, i): c1^T A x <= c0^T x for all H_edge x >= 0
-    # where c_k^T = y_k^T H_k and 
+    # Constraint edge (k0, k1, i): c_k1^T A x <= c_k0^T x for all H_edge x >= 0
+    # where c_k^T = y_k^T H_k
     for ((k0, k1, label), z, H_edge) in zip(edge_list, z_list, H_edge_list):
         H0 = H_node_list[k0]
         H1 = H_node_list[k1]
@@ -65,7 +65,7 @@ def compute_lyapunov(
 
     status = model.Status
     if status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
-        return None, None, status
+        return None, None, None, status
 
     c_list = [y.X.T @ H_node for (H_node, y) in zip(H_node_list, y_list)]
     eps_val = float(eps.X)

@@ -3,13 +3,16 @@ import numpy as np
 from src.cone import _check_cone_nullity
 
 
+type Path = list[int]
+type Edge = tuple[int,int,int]
+
 class PiecewiseLinearSystem:
     def __init__(
         self,
         H_list: list[np.ndarray],
         A_list: list[np.ndarray],
     ):
-        if len(H_list) == 0:
+        if len(H_list) == 0 or len(A_list) == 0:
             raise ValueError("At least one subsystem is required.")
         if not (len(A_list) == len(H_list)):
             raise ValueError("H_list and A_list must have the same length.")
@@ -33,7 +36,7 @@ class PiecewiseLinearSystem:
 
 def _build_path_domain(
     sys: PiecewiseLinearSystem,
-    path: list[int],
+    path: Path,
 ):
     if len(path) == 0:
         raise ValueError("At least one step is required.")
@@ -65,12 +68,12 @@ def _compute_feasible_path_list(
     verbose: bool = False,
 ):
     if not isinstance(length, int) or length <= 0:
-        raise ValueError("Order must be a positive integer")
-    n_piece = len(sys.H_list)
+        raise ValueError("Length must be a positive integer")
+    n_sub = len(sys.H_list)
     feasible_path_list = []
-    for _path_ in itertools.product(range(n_piece), repeat=length):
+    for _path_ in itertools.product(range(n_sub), repeat=length):
         path = list(_path_)
-        y, eps, status = _check_path_feasibility(sys, path, verbose=verbose)
+        y, eps, status = _check_path_feasibility(sys, path, verbose)
         if y is None:
             raise ValueError(f"Status: {status}")
         if eps > tol:
@@ -78,12 +81,13 @@ def _compute_feasible_path_list(
     return feasible_path_list
 
 
-def _find_or_add(node_list: list[list[int]], target_node: list[int]):
+def _find_or_add(node_list: list[Path], target_node: Path):
     for (k, node) in enumerate(node_list):
         if node == target_node:
             return k, True
     node_list.append(target_node)
     return len(node_list) - 1, False
+
 
 def compute_path_graph(
     sys: PiecewiseLinearSystem,
@@ -92,10 +96,9 @@ def compute_path_graph(
     verbose: bool = False,
 ):
     if not isinstance(length, int) or length <= 0:
-        raise ValueError("Order must be a positive integer")
+        raise ValueError("Length must be a positive integer")
     
-    path_list = _compute_feasible_path_list(sys, length + 1,
-                                            tol=tol, verbose=verbose)
+    path_list = _compute_feasible_path_list(sys, length + 1, tol, verbose)
     
     node_list = []
     edge_list = []
@@ -109,7 +112,6 @@ def compute_path_graph(
         edge_list.append((k0, k1, label))
     
     return node_list, edge_list
-
 
 
 # end of system.py

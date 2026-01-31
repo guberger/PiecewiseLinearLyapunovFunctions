@@ -25,7 +25,7 @@ def _check_cone_nullity(
 
     status = model.Status
     if status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
-        return None, None, None, status
+        return None, None, status
 
     y_val = y.X
     eps_val = float(eps.X)

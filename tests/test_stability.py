@@ -9,49 +9,40 @@ from src.stability import compute_lyapunov
 print("=======================================================================")
 print(" Stability")
 print("=======================================================================")
+A_base = 1.0 * np.array([[np.cos(1), -np.sin(1)], [np.sin(1), np.cos(1)]])
 H0 = np.array([
     [1.0, 0.0],
     [0.0, 1.0],
 ])
-A0 = np.array([
-    [0.7, -0.7],
-    [0.7, 0.7],
-])
+A0 = A_base + 0.3 * np.array([[1, 1], [0, 0]])
 H1 = np.array([
     [-1.0, 0.0],
     [0.0, 1.0],
 ])
-A1 = np.array([
-    [0.7, -0.7],
-    [0.7, 0.7],
-])
+A1 = A_base + 0.3 * np.array([[-1, 1], [0, 0]])
 H2 = np.array([
     [-1.0, 0.0],
     [0.0, -1.0],
 ])
-A2 = np.array([
-    [0.0, -1.0],
-    [1.0, 0.0],
-])
+A2 = A_base + 0.3 * np.array([[-1, -1], [0, 0]])
 H3 = np.array([
     [1.0, 0.0],
     [0.0, -1.0],
 ])
-A3 = np.array([
-    [0.0, -0.5],
-    [-0.5, -0.1],
-])
+A3 = A_base + 0.3 * np.array([[1, -1], [0, 0]])
 sys = PiecewiseLinearSystem([H0, H1, H2, H3], [A0, A1, A2, A3])
-node_list, edge_list = compute_path_graph(sys, 2)
+node_list, edge_list = compute_path_graph(sys, 3)
 print(node_list)
 print(edge_list)
 H_list, c_list, eps, status = compute_lyapunov(sys, node_list, edge_list)
 print("status:", status)
 print("eps:", eps)
 
+
 # Plotting
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1, aspect='equal')
+some_vert = None
 
 for (H, c) in zip(H_list, c_list):
     M = np.vstack((-H, c))
@@ -72,6 +63,20 @@ for (H, c) in zip(H_list, c_list):
     vertices.append(np.zeros(2))
     x, y = zip(*vertices)
     ax.plot(x, y, '-o', markersize=2)
+    some_vert = vertices[1]
 
+x = some_vert
+xs = [x]
+for _ in range(100):
+    ok = False
+    for (H, A) in zip(sys.H_list, sys.A_list):
+        if np.all(H @ x >= -1e-8):
+            x = (A + 0.0 * A_base) @ x
+            xs.append(x)
+            ok = True
+            break
+    assert ok
+x, y = zip(*xs)
+ax.plot(x, y, '-o', markersize=2)
 plt.show()
 print("=======================================================================")
