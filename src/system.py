@@ -1,4 +1,3 @@
-import itertools
 import numpy as np
 from src.cone import _check_cone_nullity
 
@@ -166,11 +165,13 @@ def _compute_feasible_path_list(
             for i in range(len(sys.H_list)):
                 path = old_node.copy()
                 path.append(i)
-                if _check_path_feasibility(sys, path, verbose):
+                if _check_path_feasibility(sys, path, tol, verbose):
                     feasible_path_list.append(path)
         old_feasible_path_list = feasible_path_list
     return feasible_path_list
 
+
+# import itertools
 
 # def _compute_feasible_path_list_old(
 #     sys: PiecewiseLinearSystem,

@@ -30,10 +30,12 @@ H3 = np.array([
 ])
 A3 = A_basic + 0.3 * np.array([[1, -1], [0, 0]])
 sys = PiecewiseLinearSystem([H0, H1, H2, H3], [A0, A1, A2, A3])
-node_list, edge_list = compute_path_graph(sys, 7)
+node_list, edge_list = compute_path_graph(sys, 8)
 H_list, c_list, eps, status = compute_lyapunov(sys, node_list, edge_list)
 print("status:", status)
 print("eps:", eps)
 
 if eps is not None and eps > 1e-5:
     plot_levelsets_and_trajectory(sys, H_list, c_list)
+else:
+    plot_levelsets_and_trajectory(sys, [], [], x_init=np.array([1, 0]))
