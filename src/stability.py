@@ -11,32 +11,70 @@ def compute_lyapunov(
     verbose: bool = False,
 ):
     """
-    Computes a piecewise-linear Lyapunov function for the piecewise-linear system ``sys`` using Linear Programming.
+    Compute a piecewise-linear Lyapunov function via linear programming.
 
-    Each piece is defined on a conic domain ``H @ x >= 0`` with value ``c.T @ x``. The i-th piece corresponds to
-    ``(H_list[i], c_list[i])``. The computation is considered successful if ``eps > 0``.
+    This function attempts to construct a piecewise-linear Lyapunov function for
+    a given piecewise-linear system using the path graph representation. Each
+    Lyapunov piece is defined on a conic domain
+
+        H @ x >= 0,
+
+    with value function
+
+        V(x) = c.T @ x.
+
+    The conic domains correspond to the nodes of the path graph, and the Lyapunov
+    decrease conditions are enforced along the edges of the graph. The Lyapunov
+    function is certified if the optimal margin ``eps`` returned by the linear
+    program is strictly positive.
 
     Parameters
     ----------
     sys : PiecewiseLinearSystem
-        Piecewise linear system.
+        Piecewise-linear system defining the dynamics.
     node_list : list[Path]
-        List of nodes of the path graph.
+        List of nodes of the path graph. Each node defines a conic domain via
+        its associated path.
     edge_list : list[Edge]
-        List of edges of the path graph.
+        List of directed edges of the path graph encoding admissible transitions
+        between nodes.
     verbose : bool, optional
-        If True, print details from the LP solver.
+        If True, enable solver output from the underlying linear program.
+        Default is False.
 
     Returns
     -------
     H_list : list[np.ndarray]
-        List of constraint matrices. ``H_node_list[i]`` defines the conic domain of piece i via ``H @ x >= 0``.
+        List of constraint matrices defining the conic domains of the Lyapunov
+        pieces. The i-th matrix ``H_list[i]`` defines the domain via
+        ``H_list[i] @ x >= 0``.
     c_list : list[np.ndarray]
-        List of coefficient vectors. ``c_list[i]`` defines the linear function of piece i via ``c.T @ x``.
+        List of coefficient vectors defining the Lyapunov function pieces.
+        The i-th Lyapunov function is ``V_i(x) = c_list[i].T @ x``.
     eps : float
-        Feasibility / margin value. The computation is successful if ``eps > 0``.
-    """
+        Optimal margin value returned by the linear program. The construction
+        is successful if ``eps > 0``.
+    status : int
+        Solver termination status code.
+
+    Notes
+    -----
+    The Lyapunov coefficients are constructed indirectly via dual variables
+    ``y_k`` associated with each node domain, with
+
+        c_k.T = y_k.T @ H_k.
     
+    In this ``c_k.T @ x`` is positive on ``H_k @ x > 0``.
+    For each edge ``(k0, k1, i)``, the linear program enforces the decrease
+    condition
+
+        c_{k1}.T @ A_i @ x <= c_{k0}.T @ x
+
+    for all ``x`` in the conic domain associated with the concatenated path.
+    No normalization of the Lyapunov function is imposed beyond the bounds
+    encoded in the optimization problem.
+    """
+
     if len(node_list) == 0:
         raise ValueError("At least one node is required.")
     
@@ -69,14 +107,16 @@ def compute_lyapunov(
     ]
     eps = model.addVar(ub=2e3, name="eps")
 
-    # Lower bound on y and z
+    # Lower bounds on y and z
     for y in y_list:
         model.addConstr(y >= eps)
     for z in z_list:
         model.addConstr(z >= eps)
 
-    # Constraint edge (k0, k1, i): c_k1^T A x <= c_k0^T x for all H_edge x >= 0
-    # where c_k^T = y_k^T H_k
+    # Constraints:
+    # For each edge ``(k0, k1, i)``, the linear program enforces the decrease
+    # condition ``c_{k1}.T @ A_i @ x <= c_{k0}.T @ x`` on the conic domain
+    # ``H_edge @ x >= 0``.
     for ((k0, k1, label), z, H_edge) in zip(edge_list, z_list, H_edge_list):
         H0 = H_node_list[k0]
         H1 = H_node_list[k1]
@@ -85,7 +125,7 @@ def compute_lyapunov(
         A = sys.A_list[label]
         model.addConstr(y0.T @ H0 - y1.T @ H1 @ A == z.T @ H_edge)
 
-    # Objective: maximize eps
+    # Objective
     model.setObjective(eps, GRB.MAXIMIZE)
 
     model.optimize()

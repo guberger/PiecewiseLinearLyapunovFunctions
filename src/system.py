@@ -8,19 +8,41 @@ type Edge = tuple[int,int,int]
 
 class PiecewiseLinearSystem:
     """
-    Piecewise-linear system of dimension ``n``.
+    Piecewise-linear dynamical system defined on conic regions.
 
-    Each piece is defined on a conic domain ``H @ x >= 0`` with linear dynamics
-    ``x ↦ A @ x``. The i-th piece of the system corresponds to ``(H_list[i], A_list[i])``.
+    This class represents a discrete-time piecewise-linear system of the form
+
+        x ↦ A_i @ x   if   H_i @ x >= 0,
+
+    where each pair ``(H_i, A_i)`` defines a linear subsystem active on a conic
+    domain. The full system consists of a finite collection of such subsystems,
+    each defined on a (possibly overlapping) polyhedral cone.
+
+    Parameters
+    ----------
+    H_list : list[np.ndarray]
+        List of two-dimensional arrays defining the conic domains via
+        ``H_i @ x >= 0``. All matrices must have the same number of columns,
+        equal to the state dimension.
+    A_list : list[np.ndarray]
+        List of square system matrices defining the linear dynamics
+        ``x ↦ A_i @ x`` on each corresponding domain. Each matrix must have
+        shape ``(n, n)``.
 
     Attributes
     ----------
     H_list : list[np.ndarray]
-        List of matrices defining the conic domains via ``H @ x >= 0``.
+        List of matrices defining the conic domains.
     A_list : list[np.ndarray]
-        List of system matrices defining the linear dynamics ``A @ x`` on each domain.
+        List of system matrices defining the linear dynamics on each domain.
     n : int
         State-space dimension.
+
+
+    Notes
+    -----
+    The class does not enforce disjointness or completeness of the conic domains;
+    it only stores the subsystem definitions and checks dimensional consistency.
     """
 
     def __init__(
@@ -55,24 +77,37 @@ def _build_path_domain(
     path: Path,
 ):
     """
-    Constructs the polyhedral cone of initial states consistent with a given path.
+    Construct the cone of initial states consistent with a given switching path.
 
-    Given a sequence ``path`` of ``m`` pieces of ``sys``, this function builds the
-    polyhedral cone ``H @ x >= 0`` consisting of all initial states ``x`` for which
-    there exists a trajectory ``x_traj`` such that
-    ``x_traj[i]`` lies in the domain of ``path[i]`` for all ``0 <= i < m``.
+    Given a finite path of subsystem indices, this function computes a matrix ``H``
+    such that the polyhedral cone
+
+        H @ x >= 0
+
+    characterizes all initial states ``x`` for which there exists a trajectory
+    ``x_traj`` satisfying the domain constraints induced by the path. Specifically,
+    for a path ``(i_0, i_1, ..., i_{m-1})``, the trajectory must satisfy
+
+        x_traj[0] = x,
+        x_traj[k + 1] = A_{i_k} @ x_traj[k],
+        H_{i_k} @ x_traj[k] >= 0   for all 0 <= k < m.
+
+    The resulting cone is expressed entirely in terms of the initial state ``x``
+    by propagating the domain constraints backward through the dynamics.
 
     Parameters
     ----------
     sys : PiecewiseLinearSystem
-        Piecewise-linear system.
+        Piecewise-linear system defining the conic domains and linear dynamics.
     path : Path
-        Non-empty sequence of pieces of ``sys``.
+        Non-empty sequence of indices specifying a path through the pieces of
+        ``sys``.
 
     Returns
     -------
     H : np.ndarray
-        Matrix defining the polyhedral cone of admissible initial states via ``H @ x >= 0``.
+        Two-dimensional array defining the polyhedral cone of admissible initial
+        states via ``H @ x >= 0``.
     """
 
     if len(path) == 0:
@@ -96,35 +131,48 @@ def _check_path_feasibility(
     verbose: bool = False,
 ):
     """
-    Checks feasibility of a path by testing nullity of its domain.
+    Check feasibility of a switching path via nullity of its domain.
 
-    The domain associated with ``path`` is constructed as a polyhedral cone.
-    If the cone is null (up to tolerance ``tol``), the path is declared infeasible.
+    This function determines whether a given path through the pieces of a
+    piecewise-linear system is feasible. Feasibility is tested by constructing
+    the polyhedral cone of initial states consistent with the path and checking
+    whether this cone is non-null.
+
+    Let ``H @ x >= 0`` be the cone associated with ``path``. The path is declared
+    infeasible if this cone reduces to ``{0}`` up to numerical tolerance. The
+    nullity test is performed by solving an auxiliary optimization problem whose
+    optimal value is returned as ``eps``.
 
     Parameters
     ----------
     sys : PiecewiseLinearSystem
-        Piecewise-linear system.
+        Piecewise-linear system defining the conic domains and linear dynamics.
     path : Path
-        Sequence of pieces of ``sys``.
-    tol : float
-        Tolerance for infeasibility. The path is infeasible if ``eps < tol``.
+        Sequence of subsystem indices specifying a path through ``sys``.
+    tol : float, optional
+        Numerical tolerance for infeasibility. The path is considered infeasible
+        if ``eps <= tol``. Default is ``1e-8``.
     verbose : bool, optional
-        If True, print solver details from the underlying feasibility check.
+        If True, enable solver output from the underlying cone nullity check.
+        Default is False.
 
     Returns
     -------
     feasible : bool
         True if the path domain is non-null up to tolerance ``tol``,
         False otherwise.
-    eps : float
-        Value used to test nullity of the path domain.
+
+    Raises
+    ------
+    RuntimeError
+        If the underlying cone nullity check fails to terminate with an acceptable
+        solver status.
     """
 
     H = _build_path_domain(sys, path)    
     y, eps, status = _check_cone_nullity(H, verbose=verbose)
     if y is None:
-        raise ValueError(f"Status: {status}")
+        raise RuntimeError(f"Status: {status}")
     return eps > tol
 
 
@@ -135,27 +183,44 @@ def _compute_feasible_path_list(
     verbose: bool = False,
 ):
     """
-    Computes all feasible paths of a given length for a piecewise-linear system.
+    Compute all feasible switching paths of a given length.
 
-    A path is deemed infeasible if the nullity check of its domain yields
-    ``eps < tol``, where ``eps`` is the output of the cone nullity test.
-    This implementation uses a recursive procedure.
+    This function enumerates all paths of a prescribed length through the pieces
+    of a piecewise-linear system and retains only those that are feasible. A path
+    is considered feasible if the polyhedral cone of initial states consistent
+    with the path is non-null up to a specified numerical tolerance.
+
+    Feasibility of each candidate path is determined by constructing its domain
+    and applying a cone nullity test. Paths for which the optimal value ``eps``
+    returned by this test satisfies ``eps <= tol`` are discarded.
+
+    The enumeration is performed incrementally: starting from the empty path,
+    feasible paths are extended one step at a time and pruned as soon as they
+    become infeasible.
 
     Parameters
     ----------
     sys : PiecewiseLinearSystem
-        Piecewise-linear system.
+        Piecewise-linear system defining the conic domains and linear dynamics.
     length : int
-        Length of the paths.
-    tol : float
-        Tolerance for infeasibility. A path is infeasible if ``eps < tol``.
+        Desired length of the switching paths.
+    tol : float, optional
+        Numerical tolerance for infeasibility. A path is discarded if
+        ``eps <= tol``. Default is ``1e-8``.
     verbose : bool, optional
-        If True, print solver details from the underlying feasibility checks.
+        If True, enable solver output from the underlying feasibility checks.
+        Default is False.
 
     Returns
     -------
     paths : list[Path]
-        List of all feasible paths of length ``length``.
+        List of all feasible paths of length ``length``. Each path is represented
+        as a list of subsystem indices.
+
+    Notes
+    -----
+    The number of feasible paths may grow exponentially with ``length`` in the
+    worst case. No memoization or symmetry reduction is performed.
     """
 
     old_feasible_path_list = [[]]
@@ -195,12 +260,18 @@ def _compute_feasible_path_list(
 
 def _find_or_add(node_list: list[Path], target_node: Path):
     """
-    Finds the index of a node in a list, adding it if absent.
+    Find the index of a node in a list, inserting it if absent.
+
+    This utility function searches for ``target_node`` in ``node_list`` using
+    equality comparison. If the node is already present, its index is returned.
+    Otherwise, the node is appended to the list and the index of the newly added
+    entry is returned.
 
     Parameters
     ----------
     node_list : list[Path]
-        List of nodes.
+        List of existing nodes. The list is modified in place if
+        ``target_node`` is not found.
     target_node : Path
         Node to search for.
 
@@ -208,6 +279,14 @@ def _find_or_add(node_list: list[Path], target_node: Path):
     -------
     index : int
         Index of ``target_node`` in ``node_list`` after insertion if needed.
+    found : bool
+        True if ``target_node`` was already present in ``node_list``,
+        False if it was added.
+
+    Notes
+    -----
+    Equality is tested using the ``==`` operator on nodes. No attempt is made to
+    avoid aliasing or to copy ``target_node`` before insertion.
     """
     
     for (k, node) in enumerate(node_list):
@@ -224,30 +303,46 @@ def compute_path_graph(
     verbose: bool = False,
 ):
     """
-    Builds the path graph associated with a piecewise-linear system.
+    Construct the path graph of a piecewise-linear system.
 
-    Nodes of the graph correspond to feasible paths of length ``length``.
-    There is a directed edge from ``node0`` to ``node1`` if
-    ``node0[1:] == node1[:-1]`` and the concatenated path
-    ``node0 + [node1[-1]]`` is feasible.
+    This function builds a directed graph whose nodes correspond to feasible
+    paths of a fixed length through the pieces of a piecewise-linear system.
+    Edges encode feasible one-step extensions of these paths.
+
+    Let ``length = L``. Nodes of the graph are all feasible paths of length ``L``.
+    There is a directed edge from node ``p`` to node ``q`` if
+
+        p[1:] == q[:-1]
+
+    and the concatenated path ``p + [q[-1]]`` is feasible. Each edge is labeled
+    by the first element of the concatenated path.
+
+    The graph is constructed by enumerating all feasible paths of length
+    ``L + 1`` and extracting their overlapping subpaths.
 
     Parameters
     ----------
     sys : PiecewiseLinearSystem
-        Piecewise-linear system.
+        Piecewise-linear system defining the conic domains and linear dynamics.
     length : int
-        Length of the paths used as graph nodes.
-    tol : float
-        Tolerance for infeasibility. A path is infeasible if ``eps < tol``.
+        Length of the paths used as graph nodes. Must be a positive integer.
+    tol : float, optional
+        Numerical tolerance for infeasibility. A path is discarded if
+        ``eps <= tol``. Default is ``1e-8``.
     verbose : bool, optional
-        If True, print solver details from the underlying feasibility checks.
+        If True, enable solver output from the underlying feasibility checks.
+        Default is False.
 
     Returns
     -------
     node_list : list[Path]
-        List of nodes of the path graph (feasible paths of length ``length``).
+        List of nodes of the path graph. Each node is a feasible path of
+        length ``length``.
     edge_list : list[Edge]
-        List of directed edges of the path graph.
+        List of directed edges of the path graph. Each edge is a tuple
+        ``(k0, k1, label)``, where ``k0`` and ``k1`` are indices into
+        ``node_list`` and ``label`` identifies the active piece for the
+        transition.
     """
 
     if not isinstance(length, int) or length <= 0:
