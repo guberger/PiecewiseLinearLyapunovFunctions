@@ -10,6 +10,33 @@ def compute_lyapunov(
     edge_list: list[Edge],
     verbose: bool = False,
 ):
+    """
+    Computes a piecewise-linear Lyapunov function for the piecewise-linear system ``sys`` using Linear Programming.
+
+    Each piece is defined on a conic domain ``H @ x >= 0`` with value ``c.T @ x``. The i-th piece corresponds to
+    ``(H_list[i], c_list[i])``. The computation is considered successful if ``eps > 0``.
+
+    Parameters
+    ----------
+    sys : PiecewiseLinearSystem
+        Piecewise linear system.
+    node_list : list[Path]
+        List of nodes of the path graph.
+    edge_list : list[Edge]
+        List of edges of the path graph.
+    verbose : bool, optional
+        If True, print details from the LP solver.
+
+    Returns
+    -------
+    H_list : list[np.ndarray]
+        List of constraint matrices. ``H_node_list[i]`` defines the conic domain of piece i via ``H @ x >= 0``.
+    c_list : list[np.ndarray]
+        List of coefficient vectors. ``c_list[i]`` defines the linear function of piece i via ``c.T @ x``.
+    eps : float
+        Feasibility / margin value. The computation is successful if ``eps > 0``.
+    """
+    
     if len(node_list) == 0:
         raise ValueError("At least one node is required.")
     

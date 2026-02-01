@@ -7,6 +7,26 @@ def _check_cone_nullity(
     H: np.ndarray,  # assume pointed
     verbose: bool = False,
 ):
+    """
+    Checks whether the cone ``H @ x >= 0`` contains only the origin.
+
+    The test is performed by searching for a vector ``y >= 1`` that minimizes
+    ``eps = || y.T @ H ||_∞``. The cone ``H @ x >= 0`` equals ``{0}`` if the
+    optimal value ``eps`` is zero (up to numerical tolerance).
+
+    Parameters
+    ----------
+    H : np.ndarray
+        Matrix defining the cone via ``H @ x >= 0``. The cone is assumed to be pointed.
+    verbose : bool, optional
+        If True, print details from the LP solver.
+
+    Returns
+    -------
+    eps : float
+        Optimal value of the LP. The cone equals ``{0}`` if ``eps == 0`` up to rounding error.
+    """
+
     model = gp.Model("check_cone_nullity")
     model.Params.OutputFlag = 1 if verbose else 0
 
