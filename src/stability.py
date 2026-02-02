@@ -64,13 +64,18 @@ def compute_lyapunov(
 
         c_k.T = y_k.T @ H_k.
     
-    In this ``c_k.T @ x`` is positive on ``H_k @ x > 0``.
-    For each edge ``(k0, k1, i)``, the linear program enforces the decrease
-    condition
+    In this way, ``c_k.T @ x > 0`` for all non-zero ``x`` s.t. ``H_k @ x >= 0``.
+    For each edge ``edge = (k0, k1, i)``, the linear program enforces the
+    decrease condition
 
-        c_{k1}.T @ A_i @ x <= c_{k0}.T @ x
+        c_{k1}.T @ A_i @ x < c_{k0}.T @ x
 
-    for all ``x`` in the conic domain associated with the concatenated path.
+    for all non-zero ``x`` in the conic domain ``H_edge @ x >= 0`` associated
+    with the concatenated path of ``edge``, via dual variables ``z_edge``:
+    
+        c_{k1}.T @ A_i @ x - c_{k0}.T @ x == - z_edge.T @ H_edge.
+
+    The margin ``eps`` is a lower bound on ``y_k`` and ``z_edge``.
     No normalization of the Lyapunov function is imposed beyond the bounds
     encoded in the optimization problem.
     """
@@ -115,8 +120,8 @@ def compute_lyapunov(
 
     # Constraints:
     # For each edge ``(k0, k1, i)``, the linear program enforces the decrease
-    # condition ``c_{k1}.T @ A_i @ x <= c_{k0}.T @ x`` on the conic domain
-    # ``H_edge @ x >= 0``.
+    # condition ``c_{k1}.T @ A_i @ x < c_{k0}.T @ x`` on the conic domain
+    # ``H_edge @ x >= 0`` except ``{0}``.
     for (edge, z, H_edge) in zip(edge_list, z_list, H_edge_list):
         H0 = H_node_list[edge.src]
         H1 = H_node_list[edge.tar]

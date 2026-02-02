@@ -54,7 +54,7 @@ def _vertices_from_halfspaces(M: np.ndarray, b: np.ndarray, eps_center: float = 
     return vertices
 
 
-# ---------- Plot helpers ----------
+# ---------- PWL function helpers ----------
 
 def plot_piece_levelset(ax, H: np.ndarray, c: np.ndarray, level: float = 1e3):
     M, b = _halfspaces_for_piece(H, c, level=level)
