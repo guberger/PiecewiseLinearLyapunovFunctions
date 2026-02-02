@@ -84,9 +84,9 @@ def compute_lyapunov(
         H_node_list.append(H)
 
     H_edge_list = []
-    for (k0, k1, _) in edge_list:
-        node0 = node_list[k0]
-        node1 = node_list[k1]
+    for edge in edge_list:
+        node0 = node_list[edge.src]
+        node1 = node_list[edge.tar]
         assert node0[1:] == node1[:-1]
         path = node0.copy()
         path.append(node1[-1])
@@ -117,12 +117,12 @@ def compute_lyapunov(
     # For each edge ``(k0, k1, i)``, the linear program enforces the decrease
     # condition ``c_{k1}.T @ A_i @ x <= c_{k0}.T @ x`` on the conic domain
     # ``H_edge @ x >= 0``.
-    for ((k0, k1, label), z, H_edge) in zip(edge_list, z_list, H_edge_list):
-        H0 = H_node_list[k0]
-        H1 = H_node_list[k1]
-        y0 = y_list[k0]
-        y1 = y_list[k1]
-        A = sys.A_list[label]
+    for (edge, z, H_edge) in zip(edge_list, z_list, H_edge_list):
+        H0 = H_node_list[edge.src]
+        H1 = H_node_list[edge.tar]
+        y0 = y_list[edge.src]
+        y1 = y_list[edge.tar]
+        A = sys.A_list[edge.lab]
         model.addConstr(y0.T @ H0 - y1.T @ H1 @ A == z.T @ H_edge)
 
     # Objective

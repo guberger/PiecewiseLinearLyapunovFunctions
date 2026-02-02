@@ -3,7 +3,24 @@ from src.cone import _check_cone_nullity
 
 
 type Path = list[int]
-type Edge = tuple[int,int,int]
+
+
+class Edge:
+    """
+    Represents a labelled edge in a graph.
+
+    Attributes:
+        src (int): The source (or first) vertex.
+        tar (int): The target (or second) vertex.
+        lab (int): The label associated with the edge.
+    """
+    def __init__(self, src: int, tar: int, lab: int):
+        self.src = src
+        self.tar = tar
+        self.lab = lab
+
+    def __repr__(self):
+        return f"Edge(src={self.src}, tar={self.tar}, lab={self.lab})"
 
 
 class PiecewiseLinearSystem:
@@ -269,10 +286,10 @@ def _get_index_with_insert(my_list: list, target):
 
     Parameters
     ----------
-    my_list : list[Path]
+    my_list : list
         List of existing objects. The list is modified in place if
         ``target`` is not found.
-    target : Path
+    target : object
         Object to search for.
 
     Returns
@@ -333,10 +350,10 @@ def compute_path_graph(
         List of nodes of the path graph. Each node is a feasible path of
         length ``length``.
     edge_list : list[Edge]
-        List of directed edges of the path graph. Each edge is a tuple
-        ``(k0, k1, label)``, where ``k0`` and ``k1`` are indices into
-        ``node_list`` and ``label`` identifies the active piece for the
-        transition.
+        List of directed edges of the path graph. Each Edge has:
+        - ``src``: source node index into ``node_list``
+        - ``tar``: destination node index into ``node_list``
+        - ``lab``: label identifying the active piece for the transition
     """
 
     if not isinstance(length, int) or length <= 0:
@@ -353,7 +370,7 @@ def compute_path_graph(
         node1 = path[1:]
         k1 = _get_index_with_insert(node_list, node1)
         label = path[0]
-        edge_list.append((k0, k1, label))
+        edge_list.append(Edge(src=k0, tar=k1, lab=label))
     
     return node_list, edge_list
 
