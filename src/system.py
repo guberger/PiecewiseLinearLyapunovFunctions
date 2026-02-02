@@ -258,42 +258,36 @@ def _compute_feasible_path_list(
 #     return feasible_path_list
 
 
-def _find_or_add(node_list: list[Path], target_node: Path):
+def _get_index_with_insert(my_list: list, target):
     """
-    Find the index of a node in a list, inserting it if absent.
+    Find the index of an object in a list, inserting it if absent.
 
-    This utility function searches for ``target_node`` in ``node_list`` using
-    equality comparison. If the node is already present, its index is returned.
-    Otherwise, the node is appended to the list and the index of the newly added
+    This utility function searches for ``target`` in ``my_list`` using
+    equality comparison. If the target is already present, its index is returned.
+    Otherwise, the target is appended to the list and the index of the newly added
     entry is returned.
 
     Parameters
     ----------
-    node_list : list[Path]
-        List of existing nodes. The list is modified in place if
-        ``target_node`` is not found.
-    target_node : Path
-        Node to search for.
+    my_list : list[Path]
+        List of existing objects. The list is modified in place if
+        ``target`` is not found.
+    target : Path
+        Object to search for.
 
     Returns
     -------
     index : int
-        Index of ``target_node`` in ``node_list`` after insertion if needed.
-    found : bool
-        True if ``target_node`` was already present in ``node_list``,
-        False if it was added.
-
-    Notes
-    -----
-    Equality is tested using the ``==`` operator on nodes. No attempt is made to
-    avoid aliasing or to copy ``target_node`` before insertion.
+        Index of ``target`` in ``my_list`` after insertion if needed.
     """
+
+    index = next((l for (l, item) in enumerate(my_list) if item == target), -1)
     
-    for (k, node) in enumerate(node_list):
-        if node == target_node:
-            return k, True
-    node_list.append(target_node)
-    return len(node_list) - 1, False
+    if index < 0:
+        index = len(my_list)
+        my_list.append(target)
+
+    return index
 
 
 def compute_path_graph(
@@ -355,9 +349,9 @@ def compute_path_graph(
     
     for path in path_list:
         node0 = path[:-1]
-        k0, _ = _find_or_add(node_list, node0)
+        k0 = _get_index_with_insert(node_list, node0)
         node1 = path[1:]
-        k1, _ = _find_or_add(node_list, node1)
+        k1 = _get_index_with_insert(node_list, node1)
         label = path[0]
         edge_list.append((k0, k1, label))
     
