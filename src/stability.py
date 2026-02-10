@@ -60,22 +60,21 @@ def compute_lyapunov(
     Notes
     -----
     The Lyapunov coefficients are constructed indirectly via dual variables
-    ``y_k`` associated with each node domain, with
+    ``y_k >= eps`` associated with each node domain, with
 
         c_k.T = y_k.T @ H_k.
     
-    In this way, ``c_k.T @ x > 0`` for all non-zero ``x`` s.t. ``H_k @ x >= 0``.
-    For each edge ``edge = (k0, k1, i)``, the linear program enforces the
-    decrease condition
+    In this way, if ``eps > 0'', then ``c_k.T @ x > 0`` for all ``x != 0`` s.t.
+    ``H_k @ x >= 0``. For each edge ``edge = (k0, k1, i)``, if ``eps > 0'', the
+    linear program enforces the decrease condition
 
         c_{k1}.T @ A_i @ x < c_{k0}.T @ x
 
-    for all non-zero ``x`` in the conic domain ``H_edge @ x >= 0`` associated
-    with the concatenated path of ``edge``, via dual variables ``z_edge``:
+    for all ``x != 0`` in the conic domain ``H_edge @ x >= 0`` associated with
+    the concatenated path of ``edge``, via dual variables ``z_edge >= eps``:
     
         c_{k1}.T @ A_i @ x - c_{k0}.T @ x == - z_edge.T @ H_edge.
 
-    The margin ``eps`` is a lower bound on ``y_k`` and ``z_edge``.
     No normalization of the Lyapunov function is imposed beyond the bounds
     encoded in the optimization problem.
     """
